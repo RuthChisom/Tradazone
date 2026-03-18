@@ -99,47 +99,43 @@ export function AuthProvider({ children }) {
         setWalletType(null);
     };
 
-    // ── Starknet (Argent) ────────────────────────────────────────────────────
+    // ── Starknet (Argent / Braavos) ──────────────────────────────────────────
     const connectStarknetWallet = async () => {
         try {
-            const { connect } = await import('get-starknet');
-            const starknet = await connect();
+            // Prefer argentX if available, otherwise fallback to generic starknet object
+            const starknetProvider = window.starknet_argentX || window.starknet;
 
-            if (!starknet) {
-                // Try specific ArgentX provider if generic connect fails to pick it up
-                if (window.starknet_argentX) {
-                    await window.starknet_argentX.enable();
-                    if (window.starknet_argentX.isConnected) {
-                        starknet = window.starknet_argentX;
-                    } else {
-                        throw new Error('No wallet selected');
-                    }
-                } else {
-                    throw new Error('No wallet selected');
-                }
-            } else {
-                // Standard get-starknet flow
-                const isPreauthorized = await starknet.isPreauthorized();
-                if (!isPreauthorized) {
-                    try {
-                        await starknet.enable({ starknetVersion: "v4" });
-                    } catch (e) {
-                        await starknet.enable();
-                    }
-                }
+            if (!starknetProvider) {
+                throw new Error('No Starknet wallet extension found');
             }
 
-            if (starknet && starknet.isConnected) {
-                const addr = starknet.selectedAddress;
+            // Standard way to request accounts
+            const enableResult = await starknetProvider.enable({ starknetVersion: "v4" }).catch(() => {
+                // version fallback
+                return starknetProvider.enable();
+            });
 
-                const walletState = { address: addr, isConnected: true, chainId: starknet.chainId, balance: '0', currency: 'STRK' };
+            // After enable, the specific provider object has properties
+            if (starknetProvider.isConnected || (enableResult && enableResult.length > 0)) {
+                
+                // Account address can be found in a few places depending on standard version
+                const addr = starknetProvider.selectedAddress || (starknetProvider.account && starknetProvider.account.address) || enableResult[0];
+                
+                if (!addr) {
+                    throw new Error('Could not retrieve Starknet address');
+                }
+
+                // Different providers expose chainId differently (e.g., 'SN_MAIN', '0x534e5f4d41494e')
+                const chainIdInfo = starknetProvider.chainId || 'SN_MAIN';
+
+                const walletState = { address: addr, isConnected: true, chainId: chainIdInfo, balance: '0', currency: 'STRK' };
                 setWallet(walletState);
                 setWalletType('starknet');
                 localStorage.setItem(WALLET_KEY, addr);
 
                 const userData = {
                     id: addr,
-                    name: starknet.name || `${addr.slice(0, 6)}...${addr.slice(-4)}`,
+                    name: starknetProvider.name || `${addr.slice(0, 6)}...${addr.slice(-4)}`,
                     email: '',
                     avatar: null,
                     isAuthenticated: true,
@@ -149,22 +145,29 @@ export function AuthProvider({ children }) {
                 setUser(userData);
                 saveSession(userData);
 
-                starknet.on('accountsChanged', (accounts) => {
-                    if (accounts.length === 0) {
-                        logout();
-                    } else {
-                        setWallet(prev => ({ ...prev, address: accounts[0] }));
-                    }
-                });
+                if (starknetProvider.on) {
+                    starknetProvider.on('accountsChanged', (accounts) => {
+                        if (!accounts || accounts.length === 0) {
+                            logout();
+                        } else {
+                            setWallet(prev => ({ ...prev, address: accounts[0] }));
+                        }
+                    });
+                }
 
                 return { success: true };
             }
+            
             return { success: false, error: 'Wallet not connected' };
         } catch (error) {
-            console.error('Starknet wallet connect failed:', error);
+            console.error('Starknet native connect failed:', error);
 
-            if (error.message?.includes('No wallet') || error.message?.includes('rejected')) {
+            if (error.message?.includes('No Starknet wallet') || error.message?.includes('not found')) {
                 return { success: false, error: 'not_installed' };
+            }
+
+            if (error.message?.includes('User rejected') || error.message?.includes('declined')) {
+                return { success: false, error: 'rejected' };
             }
 
             // Dev / demo fallback
