@@ -13,7 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
-    "@stellar/freighter-api": "^6.0.1",
+    "@lobstrco/signer-extension-api": "^2.0.0",
     "chart.js": "^4.5.1",
     "ethers": "^6.16.0",
     "get-starknet": "^4.0.0",

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, ExternalLink, AlertCircle, ChevronLeft } from 'lucide-react';
 import Logo from './Logo';
 import { useDiscoveredProviders } from '../../utils/wallet-discovery';
-import { useFreighter } from '../../hooks/useFreighter';
+import { useLobstr } from '../../hooks/useLobstr';
 import { useAuth } from '../../context/AuthContext';
 
 // Stellar star icon
@@ -70,7 +70,7 @@ function BaseIcon({ size = 20 }) {
 function useWalletDetection() {
     const discoveredProviders = useDiscoveredProviders();
     const [installed, setInstalled] = useState({
-        freighter: false,
+        lobstr: false,
         argent: false,
         metamask: false,
         phantom: false,
@@ -83,8 +83,8 @@ function useWalletDetection() {
             const eth = window.ethereum;
             
             // Checking common identifiers in window
-            // Freighter: strictly check window.freighterApi as requested
-            const hasFreighter = typeof window !== 'undefined' && !!window.freighterApi;
+            // LOBSTR
+            const hasLobstr = typeof window !== 'undefined' && !!window.lobstr;
             const hasArgent = typeof window !== 'undefined' && !!(window.starknet_argentX || window.starknet?.argentX);
             
             // Use EIP-6963 providers for detection if available
@@ -93,7 +93,7 @@ function useWalletDetection() {
             const hasBase = discoveredProviders.some(p => p.info.rdns === 'com.coinbase.wallet') || !!window.coinbaseWalletExtension || !!(eth && eth.isCoinbaseWallet);
 
             setInstalled({
-                freighter: hasFreighter,
+                lobstr: hasLobstr,
                 argent: hasArgent,
                 metamask: hasMetaMask,
                 phantom: hasPhantom,
@@ -104,7 +104,7 @@ function useWalletDetection() {
 
         checkInstallations();
 
-        // Non-EIP-6963 extensions (like Freighter/Argent) sometimes inject a bit later
+        // Non-EIP-6963 extensions (like LOBSTR/Argent) sometimes inject a bit later
         const timer = setTimeout(checkInstallations, 1000);
         const timer2 = setTimeout(checkInstallations, 2500); // Second check for slow injectors
         
@@ -123,7 +123,7 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
     const [view, setView] = useState('primary'); // 'primary' | 'secondary'
 
     const { completeWalletLogin, isConnecting: isAuthConnecting } = useAuth();
-    const freighter = useFreighter();
+    const lobstrHook = useLobstr();
 
     const installed = useWalletDetection();
 
@@ -216,10 +216,10 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                         <div className="flex flex-col gap-3">
                             {view === 'primary' ? (
                                 <>
-                                    {/* Freighter */}
+                                    {/* LOBSTR */}
                                     <button
                                         onClick={async () => {
-                                            const result = await freighter.connect();
+                                            const result = await lobstrHook.connect();
                                             if (result?.success) {
                                                 completeWalletLogin(result.address, 'stellar');
                                                 if (onConnect) onConnect('stellar');
@@ -228,9 +228,9 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                                 setError({ type: 'stellar', code: result.error === 'NOT_INSTALLED' ? 'not_installed' : 'failed', message: result.error });
                                             }
                                         }}
-                                        disabled={connecting !== null || freighter.isConnecting}
+                                        disabled={connecting !== null || lobstrHook.isConnecting}
                                         className={`w-full text-left p-4 rounded-xl border flex items-center justify-between transition-all outline-none 
-                                            ${connecting === 'stellar' || freighter.isConnecting ? 'border-blue-400 bg-blue-50/50' : connecting !== null ? 'border-border/50 opacity-50' : 'border-border hover:border-blue-300 hover:bg-blue-50/30'}`}
+                                            ${connecting === 'stellar' || lobstrHook.isConnecting ? 'border-blue-400 bg-blue-50/50' : connecting !== null ? 'border-border/50 opacity-50' : 'border-border hover:border-blue-300 hover:bg-blue-50/30'}`}
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
@@ -238,7 +238,7 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                             </div>
                                             <div>
                                                 <div className="font-semibold text-t-primary flex items-center gap-2">
-                                                    Freighter
+                                                    LOBSTR
                                                     <span className="text-[10px] uppercase font-bold tracking-wide bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                         Recommended
                                                     </span>
@@ -246,9 +246,9 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                                 <div className="text-xs text-t-muted">Stellar Network</div>
                                             </div>
                                         </div>
-                                        {freighter.isConnecting ? (
+                                        {lobstrHook.isConnecting ? (
                                             <span className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                                        ) : installed.freighter && (
+                                        ) : installed.lobstr && (
                                             <span className="text-[10px] uppercase font-bold tracking-wide text-green-600 bg-green-50 px-2 py-1 rounded-md">Installed</span>
                                         )}
                                     </button>
@@ -415,14 +415,14 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
                                 <div>
                                     <p className="font-medium">
-                                        {error.type === 'stellar' ? 'Freighter is not installed.' : 
+                                        {error.type === 'stellar' ? 'LOBSTR is not installed.' : 
                                          error.type === 'starknet' ? 'Argent is not installed.' :
                                          error.type === 'evm' ? 'EVM wallet not detected in browser.' :
                                          'Wallet is not installed.'}
                                     </p>
                                     {(error.type === 'stellar' || error.type === 'starknet') && (
                                         <a 
-                                            href={error.type === 'stellar' ? 'https://www.freighter.app/' : 'https://www.argent.xyz/argent-x/'} 
+                                            href={error.type === 'stellar' ? 'https://lobstr.co/' : 'https://www.argent.xyz/argent-x/'} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-1 font-semibold underline mt-1"
@@ -438,7 +438,7 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
                                 <div>
                                     <p className="font-medium">
-                                        {error.message === 'LOCKED' ? 'Freighter is locked' : 
+                                        {error.message === 'LOCKED' ? 'LOBSTR is locked' : 
                                          error.message === 'ACCESS_DENIED' ? 'Access denied' : 
                                          'Connection failed'}
                                     </p>
@@ -446,7 +446,7 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                                         {error.message === 'LOCKED' ? (
                                             <span>Open the extension and enter your password.</span>
                                         ) : error.message === 'ACCESS_DENIED' ? (
-                                            <span>Open Freighter &rarr; Connected Sites and allow this site.</span>
+                                            <span>Open LOBSTR and allow this site to connect.</span>
                                         ) : (
                                             error.message || 'The connection was cancelled or failed. Please try again.'
                                         )}

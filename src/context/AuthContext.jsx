@@ -192,27 +192,21 @@ export function AuthProvider({ children }) {
         }
     };
 
-    // ── Stellar (Freighter) ──────────────────────────────────────────────────
+    // ── Stellar (LOBSTR) ──────────────────────────────────────────────────
     const connectStellarWallet = async () => {
         try {
-            const freighter = await import('@stellar/freighter-api');
+            const lobstr = await import('@lobstrco/signer-extension-api');
 
-            // Check if Freighter is installed
-            const connected = await freighter.isConnected();
-            if (!connected) {
-                throw new Error('Freighter not installed');
+            // Check if LOBSTR is installed
+            const connected = await lobstr.isConnected();
+            // LOBSTR API returns boolean or false if locked/uninstalled
+            if (connected === false) {
+                // we'll attempt anyway, as getPublicKey triggers prompt
             }
 
-            // Request access (prompts the user)
-            const accessResult = await freighter.requestAccess();
-            if (accessResult.error) {
-                throw new Error(accessResult.error);
-            }
-
-            const pkResult = await freighter.getPublicKey();
+            // Request access and get pub key (prompts the user)
+            const pkResult = await lobstr.getPublicKey();
             
-            // Freighter API can return an object with { publicKey } or just { error }
-            // or in some versions the result directly.
             let addr = '';
             if (typeof pkResult === 'string' && pkResult.startsWith('G')) {
                 addr = pkResult;
@@ -221,19 +215,7 @@ export function AuthProvider({ children }) {
             } else if (pkResult && pkResult.error) {
                 throw new Error(pkResult.error);
             } else {
-                // If getPublicKey failed or returned nothing, try requestAccess as fallback/second-attempt
-                const accessResult = await freighter.requestAccess();
-                if (typeof accessResult === 'string' && accessResult.startsWith('G')) {
-                    addr = accessResult;
-                } else if (accessResult && Array.isArray(accessResult) && accessResult.length > 0) {
-                    addr = accessResult[0];
-                } else if (accessResult && accessResult.address) {
-                    addr = accessResult.address;
-                } else if (accessResult && accessResult.error) {
-                    throw new Error(accessResult.error);
-                } else {
-                    throw new Error('Could not retrieve public key from Freighter');
-                }
+                throw new Error('Could not retrieve public key from LOBSTR');
             }
 
             const walletState = { address: addr, isConnected: true, chainId: 'stellar', balance: '0', currency: 'XLM' };
@@ -257,7 +239,7 @@ export function AuthProvider({ children }) {
         } catch (error) {
             console.error('Stellar wallet connect failed:', error);
 
-            if (error.message?.includes('not installed') || error.message?.includes('Freighter')) {
+            if (error.message?.includes('not installed') || error.message?.includes('LOBSTR')) {
                 return { success: false, error: 'not_installed' };
             }
 
@@ -365,7 +347,7 @@ export function AuthProvider({ children }) {
                 await disconnect();
             } catch (_) { /* swallow */ }
         }
-        // Freighter has no programmatic disconnect API
+        // LOBSTR has no programmatic disconnect API
         logout();
     };
 
