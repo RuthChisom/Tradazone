@@ -27,6 +27,20 @@ function SignIn() {
         navigate(redirectTo, { replace: true });
     };
 
+    const handleExportToCSV = () => {
+        // FIX: Issue #108 - Implement 'Export to CSV' button on the Auth module.
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + "Wallet Address,Status\n"
+            + `${lastWallet || "None"},${user.isAuthenticated ? "Connected" : "Disconnected"}\n`;
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "auth_data.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const shortWallet = lastWallet
         ? `${lastWallet.slice(0, 6)}...${lastWallet.slice(-4)}`
         : null;
@@ -78,9 +92,17 @@ function SignIn() {
                 {/* Connect Wallet Button */}
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 h-10 bg-brand text-white text-sm font-semibold hover:opacity-90 active:scale-95 transition-all mb-6 rounded-lg"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 h-10 bg-brand text-white text-sm font-semibold hover:opacity-90 active:scale-95 transition-all mb-4 rounded-lg"
                 >
                     Connect Wallet
+                </button>
+
+                {/* Export to CSV Button */}
+                <button
+                    onClick={handleExportToCSV}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 h-10 bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 active:scale-95 transition-all mb-6 rounded-lg"
+                >
+                    Export to CSV
                 </button>
 
                 <ConnectWalletModal 
