@@ -47,7 +47,9 @@ describe('initial state', () => {
 describe('login', () => {
   it('sets user as authenticated and persists session', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => { result.current.login({ id: '42', name: 'Bob', email: 'bob@b.com' }); });
+    act(() => {
+      result.current.login({ id: '42', name: 'Bob', email: 'bob@b.com' });
+    });
     expect(result.current.user.isAuthenticated).toBe(true);
     expect(result.current.user.name).toBe('Bob');
     const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
@@ -80,9 +82,10 @@ describe('logout', () => {
 describe('completeWalletLogin', () => {
   it('sets stellar wallet state correctly', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => result.current.completeWalletLogin('GBXXX123', 'stellar'));
+    const addr = 'GBXXX123';
+    act(() => result.current.completeWalletLogin(addr, 'stellar'));
     expect(result.current.wallet.isConnected).toBe(true);
-    expect(result.current.wallet.address).toBe('GBXXX123');
+    expect(result.current.wallet.address).toBe(addr);
     expect(result.current.wallet.currency).toBe('XLM');
     expect(result.current.wallet.chainId).toBe('stellar');
     expect(result.current.walletType).toBe('stellar');
@@ -90,7 +93,8 @@ describe('completeWalletLogin', () => {
 
   it('sets starknet wallet state correctly', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => result.current.completeWalletLogin('0xabc123', 'starknet'));
+    const addr = '0xabc123';
+    act(() => result.current.completeWalletLogin(addr, 'starknet'));
     expect(result.current.wallet.currency).toBe('STRK');
     expect(result.current.wallet.chainId).toBe('');
     expect(result.current.walletType).toBe('starknet');

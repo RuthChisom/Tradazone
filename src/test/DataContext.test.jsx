@@ -2,17 +2,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { DataProvider, useData } from '../context/DataContext';
 
+// localStorage is available in jsdom; clear it before each test
 beforeEach(() => localStorage.clear());
 
 const wrapper = ({ children }) => <DataProvider>{children}</DataProvider>;
 
-// ─── addCustomer ─────────────────────────────────────────────────────────────
+// ─── addCustomer ────────────────────────────────────────────────────────────
 
 describe('addCustomer', () => {
   it('creates a customer with required fields', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let customer;
-    act(() => { customer = result.current.addCustomer({ name: 'Alice', email: 'alice@example.com' }); });
+    act(() => {
+      customer = result.current.addCustomer({ name: 'Alice', email: 'alice@example.com' });
+    });
     expect(customer.name).toBe('Alice');
     expect(customer.email).toBe('alice@example.com');
     expect(customer.id).toBeTruthy();
@@ -46,7 +49,9 @@ describe('addItem', () => {
   it('creates an item with defaults', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let item;
-    act(() => { item = result.current.addItem({ name: 'Consulting', price: '100' }); });
+    act(() => {
+      item = result.current.addItem({ name: 'Consulting', price: '100' });
+    });
     expect(item.name).toBe('Consulting');
     expect(item.price).toBe('100');
     expect(item.type).toBe('service');
@@ -57,7 +62,9 @@ describe('addItem', () => {
   it('respects provided type and unit', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let item;
-    act(() => { item = result.current.addItem({ name: 'Widget', price: '50', type: 'product', unit: 'piece' }); });
+    act(() => {
+      item = result.current.addItem({ name: 'Widget', price: '50', type: 'product', unit: 'piece' });
+    });
     expect(item.type).toBe('product');
     expect(item.unit).toBe('piece');
   });
@@ -74,8 +81,13 @@ describe('addInvoice', () => {
       item = result.current.addItem({ name: 'Dev', price: '200' });
     });
     act(() => {
-      invoice = result.current.addInvoice({ customerId: customer.id, dueDate: '2025-12-31', items: [{ itemId: item.id, quantity: 3, price: '200' }] });
+      invoice = result.current.addInvoice({
+        customerId: customer.id,
+        dueDate: '2025-12-31',
+        items: [{ itemId: item.id, quantity: 3, price: '200' }],
+      });
     });
+    // 3 × 200 = 600
     expect(invoice.amount).toBe('600');
   });
 
@@ -110,7 +122,9 @@ describe('addInvoice', () => {
   it('falls back to "Unknown" for missing customer', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let it1, invoice;
-    act(() => { it1 = result.current.addItem({ name: 'Z', price: '30' }); });
+    act(() => {
+      it1 = result.current.addItem({ name: 'Z', price: '30' });
+    });
     act(() => {
       invoice = result.current.addInvoice({ customerId: 'nonexistent', dueDate: '2025-06-01', items: [{ itemId: it1.id, quantity: 1, price: '30' }] });
     });
@@ -148,36 +162,45 @@ describe('addCheckout', () => {
   it('sets status to "active" by default', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let chk;
-    act(() => { chk = result.current.addCheckout({ title: 'Plan A', amount: '50' }); });
+    act(() => {
+      chk = result.current.addCheckout({ title: 'Plan A', amount: '50' });
+    });
     expect(chk.status).toBe('active');
   });
 
   it('defaults currency to STRK when not provided', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let chk;
-    act(() => { chk = result.current.addCheckout({ title: 'Plan A', amount: '50' }); });
+    act(() => {
+      chk = result.current.addCheckout({ title: 'Plan A', amount: '50' });
+    });
     expect(chk.currency).toBe('STRK');
   });
 
   it('respects provided currency', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let chk;
-    act(() => { chk = result.current.addCheckout({ title: 'Plan A', amount: '50', currency: 'XLM' }); });
+    act(() => {
+      chk = result.current.addCheckout({ title: 'Plan A', amount: '50', currency: 'XLM' });
+    });
     expect(chk.currency).toBe('XLM');
   });
 
   it('generates a paymentLink containing the checkout id', () => {
     const { result } = renderHook(() => useData(), { wrapper });
     let chk;
-    act(() => { chk = result.current.addCheckout({ title: 'Plan A', amount: '50' }); });
+    act(() => {
+      chk = result.current.addCheckout({ title: 'Plan A', amount: '50' });
+    });
     expect(chk.paymentLink).toContain(chk.id);
   });
 });
 
-// ─── useData guard ────────────────────────────────────────────────────────────
+// ─── useData guard ───────────────────────────────────────────────────────────
 
 describe('useData', () => {
   it('throws when used outside DataProvider', () => {
+    // Suppress expected console.error from React
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => useData())).toThrow('useData must be used within a DataProvider');
     spy.mockRestore();
