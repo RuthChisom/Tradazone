@@ -60,11 +60,46 @@ The app will be available at `http://localhost:5173`.
 npm run build
 ```
 
-### Deploying to GitHub Pages
-
-```bash
 npm run deploy
 ```
+
+---
+
+## 🛠️ Developer Guide: Auth & SignUp
+
+Tradazone uses a multi-chain, wallet-based authentication system. This guide explains how to modify the sign-up and authentication flows.
+
+### Authentication Flow Overview
+Authentication is managed globally via the `AuthContext` (`src/context/AuthContext.jsx`). It handles:
+- **Session Persistence**: Saving and loading user sessions from `localStorage`.
+- **Wallet Integration**: Connecting to Stellar (LOBSTR), Starknet (Argent/Braavos), and EVM wallets (MetaMask, etc.).
+- **Automatic Login**: Detecting existing wallet connections on page load.
+
+### Modifying the SignUp Page
+The `SignUp` page (`src/pages/auth/SignUp.jsx`) is the entry point for new users. It uses the `ConnectWalletModal` to handle the actual wallet connection.
+
+To modify the post-connection logic, look at the `handleConnectSuccess` function:
+```javascript
+const handleConnectSuccess = () => {
+    // Mark as first-time user to trigger WelcomeModal onboarding
+    localStorage.setItem('tradazone_onboarded', 'false');
+    navigate(redirectTo, { replace: true });
+};
+```
+
+### Adding New Wallet Providers
+To add support for a new wallet or chain:
+1.  **Update `AuthContext.jsx`**: Add a new connection method (e.g., `connectSolanaWallet`) and integrate it into the `connectWallet` dispatcher.
+2.  **Update `ConnectWalletModal.jsx`**: Add a new button for the provider and call your new connection method.
+3.  **Wallet Discovery**: If the provider supports EIP-6963, it may already be partially detected by `src/utils/wallet-discovery.js`.
+
+### Onboarding & Welcome Logic
+When a user connects for the first time, we set `tradazone_onboarded` to `false`. This triggers the `WelcomeModal` (`src/components/ui/WelcomeModal.jsx`) on the Dashboard.
+- **Resetting Onboarding**: To test the onboarding flow again, clear your local storage or run `localStorage.removeItem('tradazone_onboarded')` in the console.
+
+### Deep Linking & Redirects
+The `SignUp` page supports a `redirect` search parameter. This is useful for sending users back to a specific invoice or checkout page after they've authenticated:
+`https://tradazone.com/signup?redirect=/invoices/INV-001`
 
 ---
 
@@ -148,6 +183,7 @@ We have adopted the following core architectural components:
 
 **Rationale**:
 - **Why Vite 7?**: Superior development velocity via instant Hot Module Replacement (HMR) and highly optimized production builds using Rollup, essential for modern dApp development workflows.
+
 - **Why React 19?**: Future-proofing the application with modern primitives (Actions, Transitions) that simplify the handling of asynchronous blockchain transactions and state updates.
 - **Why Tailwind CSS?**: Facilitates the creation of a "premium" aesthetic with zero runtime CSS overhead, ensuring the application remains fast even as the UI complexity grows.
 - **Why Context API?**: After evaluating Redux and Zustand, the native Context API was chosen for its simplicity and direct alignment with React 19’s data-fetching patterns, which is sufficient for the application's current and projected state complexity.
