@@ -17,28 +17,32 @@ vi.mock('../../components/ui/Logo', () => ({ default: () => <div data-testid="lo
 vi.mock('../../assets/auth-splash.svg', () => ({ default: 'splash.svg' }));
 
 const mockDispatchWebhook = vi.fn().mockResolvedValue({ ok: true });
-vi.mock('../../services/webhook', () => ({ dispatchWebhook: (...args) => mockDispatchWebhook(...args) }));
+vi.mock('../services/webhook', () => ({ dispatchWebhook: (...args) => mockDispatchWebhook(...args) }));
 
 let mockUser = { isAuthenticated: false, walletAddress: null, walletType: null };
 const mockConnectWallet = vi.fn();
-vi.mock('../../context/AuthContext', () => ({
+vi.mock('../context/AuthContext', () => ({
     useAuth: () => ({ connectWallet: mockConnectWallet, user: mockUser }),
 }));
 
 let mockIsStaging = false;
 let mockAppName = 'Tradazone';
-vi.mock('../../config/env', () => ({
+vi.mock('../config/env', () => ({
     get IS_STAGING() { return mockIsStaging; },
     get APP_NAME()   { return mockAppName; },
 }));
 
 // ConnectWalletModal: expose onConnect so tests can invoke handleConnectSuccess
-vi.mock('../../components/ui/ConnectWalletModal', () => ({
+let shouldUseFallbackConnectArgs = false;
+vi.mock('../components/ui/ConnectWalletModal', () => ({
     default: ({ isOpen, onConnect }) =>
         isOpen ? (
             <button
                 data-testid="mock-connect-success"
-                onClick={() => onConnect('0xWALLET', 'evm')}
+                onClick={() => onConnect(
+                    shouldUseFallbackConnectArgs ? null : '0xWALLET',
+                    shouldUseFallbackConnectArgs ? null : 'evm'
+                )}
             >
                 Simulate Connect
             </button>
@@ -60,6 +64,7 @@ beforeEach(() => {
     mockSearchParams = new URLSearchParams();
     mockIsStaging = false;
     mockAppName = 'Tradazone';
+    shouldUseFallbackConnectArgs = false;
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -122,20 +127,9 @@ describe('handleConnectSuccess', () => {
     });
 
     it('falls back to user.walletAddress/walletType when onConnect args are falsy', async () => {
-        vi.mock('../../components/ui/ConnectWalletModal', () => ({
-            default: ({ isOpen, onConnect }) =>
-                isOpen ? (
-                    <button
-                        data-testid="mock-connect-success"
-                        onClick={() => onConnect(null, null)}
-                    >
-                        Simulate Connect
-                    </button>
-                ) : null,
-        }));
+        shouldUseFallbackConnectArgs = true;
         mockUser = { isAuthenticated: false, walletAddress: '0xFALLBACK', walletType: 'stellar' };
-        const { default: SignUp } = await import('../pages/auth/SignUp');
-        render(<SignUp />);
+        await renderSignUp();
         await userEvent.click(screen.getByText('Connect Wallet'));
         await userEvent.click(screen.getByTestId('mock-connect-success'));
         expect(mockDispatchWebhook).toHaveBeenCalledWith('user.signed_up', {

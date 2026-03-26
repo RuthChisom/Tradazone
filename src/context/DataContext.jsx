@@ -156,14 +156,20 @@ export function DataProvider({ children }) {
      */
     const markCheckoutPaid = useCallback(
         (checkoutId, customerId, walletType = '') => {
-            let paidCheckout;
+            // Resolve the paid checkout from the latest rendered state first so
+            // downstream customer totals and webhooks do not rely on timing of
+            // React state updaters.
+            const currentCheckout = checkouts.find((checkout) => checkout.id === checkoutId);
+            const paidCheckout = currentCheckout
+                ? { ...currentCheckout, status: 'paid', payments: currentCheckout.payments + 1 }
+                : null;
+
             setCheckouts((prev) => {
                 const next = prev.map((c) =>
                     c.id === checkoutId
                         ? { ...c, status: 'paid', payments: c.payments + 1 }
                         : c
                 );
-                paidCheckout = next.find((c) => c.id === checkoutId);
                 save(KEYS.checkouts, next);
                 return next;
             });
@@ -195,7 +201,7 @@ export function DataProvider({ children }) {
                 });
             }
         },
-        []
+        [checkouts]
     );
 
     return (
