@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { apiFetch, setUnauthorizedHandler, paginate } from "../services/api";
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { apiFetch, setUnauthorizedHandler } from '../services/api';
 
 // ─── apiFetch ────────────────────────────────────────────────────────────────
 

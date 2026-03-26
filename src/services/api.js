@@ -1,13 +1,8 @@
 // API Service for Tradazone
 // Handles data fetching and backend integration
 //
-// ADR-API-001 (Accepted, 2026-03-24):
-// We use a centralized JavaScript gateway module as the API boundary for UI features.
-// Context: backend endpoints are still being phased in while pages need stable contracts.
-// Decision: keep `api` domain groups (`customers`, `invoices`, `checkouts`, `items`)
-// in this file and resolve base URL from `VITE_API_URL` with a local fallback.
-// Consequence: feature pages can ship against consistent async interfaces now and
-// migrate method-by-method to real HTTP calls without rewriting page-level logic.
+// ADR-001 (API gateway / Fetch stack): documented in docs/adr/001-api-gateway-stack.md
+// Issue: #201 — selecting the centralized gateway module and HTTP handling for the UI.
 
 import {
   mockCustomers,
@@ -64,8 +59,8 @@ export function paginate(items, page = 1, limit = 10) {
  * ```js
  * import { setUnauthorizedHandler } from './services/api';
  * setUnauthorizedHandler(() => {
- *     logout();
- *     navigate('/signin?reason=expired');
+ * logout();
+ * navigate('/signin?reason=expired');
  * });
  * ```
  */
@@ -90,8 +85,8 @@ export function setUnauthorizedHandler(handler) {
  *
  * - Returns parsed JSON on 2xx responses.
  * - On 401: calls _onUnauthorized() and returns
- *   `{ ok: false, error: 'ERR_TOKEN_EXPIRED', status: 401 }` so callers
- *   receive a machine-readable code rather than an unhandled rejection.
+ * `{ ok: false, error: 'ERR_TOKEN_EXPIRED', status: 401 }` so callers
+ * receive a machine-readable code rather than an unhandled rejection.
  * - On other non-2xx: throws an error enriched with `status` and `body`.
  *
  * Migration guide — replace each TODO mock with:
@@ -104,48 +99,58 @@ export function setUnauthorizedHandler(handler) {
  * @returns {Promise<unknown>}
  */
 async function apiFetch(url, options = {}) {
-  const response = await fetch(url, options);
+    const response = await fetch(url, options);
 
-  if (response.status === 401) {
-    _onUnauthorized();
-    return { ok: false, error: "ERR_TOKEN_EXPIRED", status: 401 };
-  }
+    if (response.status === 401) {
+        _onUnauthorized();
+        return { ok: false, error: 'ERR_TOKEN_EXPIRED', status: 401 };
+    }
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw Object.assign(
-      new Error(body.message || `API error ${response.status}`),
-      { status: response.status, body }
-    );
-  }
+/**
+ * FIXME (Resolved #15): Previously, an empty catch block on response.json()
+ * obscured underlying network errors. Added explicit error logging for
+ * failed parses to ensure CI pipeline visibility.
+ */
+    if (!response.ok) {
+            // ✅ FIX: Capture parsing error and provide context for CI/CD logs
+            const body = await response.json().catch((parseError) => {
+                console.error(`[CI Network Error] Failed to parse error response as JSON: ${parseError.message}`);
+                return { message: `Underlying network/format error (Status: ${response.status})` };
+            });
 
-  return response.json();
-}
+            throw Object.assign(
+                new Error(body.message || `API error ${response.status}`),
+                { status: response.status, body }
+            );
+    }
 
 // Expose for tests and future real-fetch migrations (not needed by mock callers)
 export { apiFetch };
 
 const api = {
-  // Customers
-  customers: {
-    // BUG FIX #31: list now accepts { page, limit } and returns paginated envelope
-    list: async ({ page = 1, limit = 10 } = {}) => {
-      await delay(500);
-      return paginate(mockCustomers, page, limit);
-    },
-    get: async (id) => {
-      await delay(300);
-      return mockCustomers.find((c) => c.id === id);
-    },
-    create: async (data) => {
-      await delay(800);
-      console.log("API Create Customer:", data);
-      return { id: Date.now().toString(), ...data };
-    },
-    update: async (id, data) => {
-      await delay(500);
-      console.log("API Update Customer:", id, data);
-      return { id, ...data };
+    // Customers
+    customers: {
+        list: async () => {
+            // TODO: Replace with fetch(`${API_BASE_URL}/customers`)
+            await delay(500);
+            return mockCustomers;
+        },
+        get: async (id) => {
+            await delay(300);
+            return mockCustomers.find(c => c.id === id);
+        },
+        create: async (data) => {
+            await delay(800);
+            return { id: Date.now().toString(), ...data };
+        },
+        update: async (id, data) => {
+            await delay(500);
+            return { id, ...data };
+        },
+        delete: async (id) => {
+            await delay(500);
+            return true;
+        }
     },
     delete: async (id) => {
       await delay(500);
@@ -154,28 +159,33 @@ const api = {
     },
   },
 
-  // Invoices
-  invoices: {
-    list: async ({ page = 1, limit = 10 } = {}) => {
-      await delay(500);
-      return paginate(mockInvoices, page, limit);
-    },
-    get: async (id) => {
-      await delay(300);
-      return mockInvoices.find((i) => i.id === id);
-    },
-    create: async (data) => {
-      await delay(800);
-      console.log("API Create Invoice:", data);
-      return { id: `INV-${Date.now()}`, ...data };
+    // Invoices
+    invoices: {
+        list: async () => {
+            await delay(500);
+            return mockInvoices;
+        },
+        get: async (id) => {
+            await delay(300);
+            return mockInvoices.find(i => i.id === id);
+        },
+        create: async (data) => {
+            await delay(800);
+            return { id: `INV-${Date.now()}`, ...data };
+        }
     },
   },
 
-  // Checkouts
-  checkouts: {
-    list: async ({ page = 1, limit = 10 } = {}) => {
-      await delay(500);
-      return paginate(mockCheckouts, page, limit);
+    // Checkouts
+    checkouts: {
+        list: async () => {
+            await delay(500);
+            return mockCheckouts;
+        },
+        create: async (data) => {
+            await delay(800);
+            return { id: `CHK-${Date.now()}`, ...data };
+        }
     },
     create: async (data) => {
       await delay(800);
@@ -184,18 +194,17 @@ const api = {
     },
   },
 
-  // Items
-  items: {
-    list: async ({ page = 1, limit = 10 } = {}) => {
-      await delay(500);
-      return paginate(mockItems, page, limit);
-    },
-    create: async (data) => {
-      await delay(800);
-      console.log("API Create Item:", data);
-      return { id: Date.now().toString(), ...data };
-    },
-  },
+    // Items
+    items: {
+        list: async () => {
+            await delay(500);
+            return mockItems;
+        },
+        create: async (data) => {
+            await delay(800);
+            return { id: Date.now().toString(), ...data };
+        }
+    }
 };
 
 export default api;
