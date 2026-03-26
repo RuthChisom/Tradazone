@@ -13,8 +13,8 @@ vi.mock('react-router-dom', () => ({
     Link: ({ children, to }) => <a href={to}>{children}</a>,
 }));
 
-vi.mock('../../components/ui/Logo', () => ({ default: () => <div data-testid="logo" /> }));
-vi.mock('../../assets/auth-splash.svg', () => ({ default: 'splash.svg' }));
+vi.mock('../components/ui/Logo', () => ({ default: () => <div data-testid="logo" /> }));
+vi.mock('../assets/auth-splash.svg', () => ({ default: 'splash.svg' }));
 
 const mockDispatchWebhook = vi.fn().mockResolvedValue({ ok: true });
 vi.mock('../services/webhook', () => ({ dispatchWebhook: (...args) => mockDispatchWebhook(...args) }));
@@ -33,16 +33,13 @@ vi.mock('../config/env', () => ({
 }));
 
 // ConnectWalletModal: expose onConnect so tests can invoke handleConnectSuccess
-let shouldUseFallbackConnectArgs = false;
+let mockOnConnectArgs = { walletAddress: '0xWALLET', walletType: 'evm' };
 vi.mock('../components/ui/ConnectWalletModal', () => ({
     default: ({ isOpen, onConnect }) =>
         isOpen ? (
             <button
                 data-testid="mock-connect-success"
-                onClick={() => onConnect(
-                    shouldUseFallbackConnectArgs ? null : '0xWALLET',
-                    shouldUseFallbackConnectArgs ? null : 'evm'
-                )}
+                onClick={() => onConnect(mockOnConnectArgs.walletAddress, mockOnConnectArgs.walletType)}
             >
                 Simulate Connect
             </button>
@@ -64,7 +61,7 @@ beforeEach(() => {
     mockSearchParams = new URLSearchParams();
     mockIsStaging = false;
     mockAppName = 'Tradazone';
-    shouldUseFallbackConnectArgs = false;
+    mockOnConnectArgs = { walletAddress: '0xWALLET', walletType: 'evm' };
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -127,8 +124,9 @@ describe('handleConnectSuccess', () => {
     });
 
     it('falls back to user.walletAddress/walletType when onConnect args are falsy', async () => {
-        shouldUseFallbackConnectArgs = true;
+        simulateWalletConnect = (onConnect) => onConnect(null, null);
         mockUser = { isAuthenticated: false, walletAddress: '0xFALLBACK', walletType: 'stellar' };
+        mockOnConnectArgs = { walletAddress: null, walletType: null };
         await renderSignUp();
         await userEvent.click(screen.getByText('Connect Wallet'));
         await userEvent.click(screen.getByTestId('mock-connect-success'));

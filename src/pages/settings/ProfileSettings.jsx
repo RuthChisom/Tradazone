@@ -40,7 +40,7 @@ function ProfileSettings() {
         e.preventDefault();
         const next = validate();
         if (Object.keys(next).length) { setErrors(next); return; }
-        console.log('Saving profile:', formData);
+        // API submit logic would go here
     };
 
     return (
