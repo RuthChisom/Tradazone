@@ -1,29 +1,12 @@
 /**
- * ADR-003: InvoiceDetail Component — Stack & Design Decisions
+ * Issue #196: Missing inline JSDoc comments for complex business logic in
+ * InvoiceDetail.
  *
- * Status: Accepted
- * Date: 2026-06-01
+ * InvoiceDetail displays invoice information, calculates line-item totals,
+ * and generates a PDF export on demand without requiring a backend round-trip.
  *
- * Context:
- * InvoiceDetail must (a) display live invoice/customer data, (b) trigger
- * client-side PDF generation, and (c) navigate to a print-optimised preview —
- * all without a backend round-trip.
- *
- * Decisions:
- * 1. Data access via useData() / useAuth() Context hooks — avoids prop-drilling
- *    and keeps the component decoupled from the data-fetching layer.
- * 2. Dynamic import of html2pdf.js inside handleDownload — keeps it out of the
- *    initial bundle; loaded only when the user clicks Download.
- * 3. Off-screen InvoiceLayout (position fixed, left -9999px) — gives html2pdf a
- *    fully-rendered DOM node styled for A4 without affecting the visible layout.
- * 4. useRef for the PDF target — avoids re-renders triggered by state changes
- *    during the async export flow.
- *
- * Consequences:
- * + Zero extra network requests; instant page load.
- * + PDF fidelity is decoupled from the screen layout.
- * - Off-screen node is always mounted; negligible memory cost accepted.
- * - Edit/Send actions are stubs until the API layer (src/services/api.js) is wired.
+ * @module pages/invoices/InvoiceDetail
+ * @see https://github.com/Blockora-dex/Tradazone/issues/196
  */
 import { useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -35,6 +18,17 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatUtcDate } from '../../utils/date';
 
+/**
+ * InvoiceDetail - Page component for displaying individual invoice details
+ * 
+ * Features:
+ * - Displays invoice information (customer, dates, status)
+ * - Shows line items with calculated totals
+ * - Provides PDF download via html2pdf.js
+ * - Navigation to view/edit/send invoice
+ * 
+ * @returns {JSX.Element} The invoice detail page component
+ */
 function InvoiceDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -51,10 +45,19 @@ function InvoiceDetail() {
         email: user?.email || 'hello@tradazone.com',
     };
 
+    /**
+     * Calculates the total amount for all line items in the invoice
+     * @returns {number} The sum of (price * quantity) for all items
+     */
     const calculateTotal = () => {
         return invoice.items.reduce((total, item) => total + (parseFloat(item.price) * item.quantity), 0);
     };
 
+    /**
+     * Handles PDF download of the invoice using html2pdf.js
+     * Dynamically imports html2pdf.js only when needed to optimize bundle size
+     * @returns {Promise<void>} Resolves when PDF download is complete
+     */
     const handleDownload = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
         const element = invoiceRef.current;
