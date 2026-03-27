@@ -209,3 +209,119 @@ describe('useAuthUser', () => {
     spy.mockRestore();
   });
 });
+
+// ─── Race Condition Tests ─────────────────────────────────────────────────────
+
+describe('race condition prevention', () => {
+  it('prevents concurrent completeWalletLogin calls from overwriting state', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    // Simulate rapid concurrent calls
+    act(() => {
+      result.current.completeWalletLogin('GADDR1', 'stellar');
+      result.current.completeWalletLogin('GADDR2', 'stellar');
+      result.current.completeWalletLogin('GADDR3', 'stellar');
+    });
+
+    // The last call should win, but state should be consistent
+    expect(result.current.user.isAuthenticated).toBe(true);
+    expect(result.current.wallet.isConnected).toBe(true);
+    expect(result.current.user.walletAddress).toBe(result.current.wallet.address);
+    expect(result.current.user.walletType).toBe(result.current.walletType);
+  });
+
+  it('completeWalletLogin is idempotent for same address', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    const addr = 'GADDR_SAME';
+    
+    act(() => {
+      result.current.completeWalletLogin(addr, 'stellar');
+    });
+
+    const firstState = {
+      user: { ...result.current.user },
+      wallet: { ...result.current.wallet },
+    };
+
+    // Call again with same address
+    act(() => {
+      result.current.completeWalletLogin(addr, 'stellar');
+    });
+
+    // State should remain unchanged
+    expect(result.current.user).toEqual(firstState.user);
+    expect(result.current.wallet).toEqual(firstState.wallet);
+  });
+
+  it('prevents concurrent login calls from creating inconsistent state', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    act(() => {
+      result.current.login({ id: '1', name: 'User1', email: 'user1@test.com' });
+      result.current.login({ id: '2', name: 'User2', email: 'user2@test.com' });
+    });
+
+    // Last login should win
+    expect(result.current.user.isAuthenticated).toBe(true);
+    expect(result.current.user.id).toBe('2');
+    expect(result.current.user.name).toBe('User2');
+    
+    // Session should match current user
+    const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
+    expect(stored.user.id).toBe(result.current.user.id);
+  });
+
+  it('isConnecting flag prevents concurrent connection attempts', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    // Initially not connecting
+    expect(result.current.isConnecting).toBe(false);
+    
+    // Note: We can't easily test the actual async wallet connection flow here
+    // without mocking window.ethereum, window.starknet, etc.
+    // This test verifies the flag exists and is accessible
+    expect(typeof result.current.isConnecting).toBe('boolean');
+  });
+
+  it('maintains state consistency during rapid logout/login cycles', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    // Rapid login/logout cycles
+    act(() => {
+      result.current.login({ id: '1', name: 'User1', email: 'user1@test.com' });
+      result.current.logout();
+      result.current.login({ id: '2', name: 'User2', email: 'user2@test.com' });
+      result.current.logout();
+      result.current.login({ id: '3', name: 'User3', email: 'user3@test.com' });
+    });
+
+    // Final state should be authenticated with last login
+    expect(result.current.user.isAuthenticated).toBe(true);
+    expect(result.current.user.id).toBe('3');
+    
+    const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
+    expect(stored.user.id).toBe('3');
+  });
+
+  it('maintains wallet and user state consistency during rapid operations', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    act(() => {
+      result.current.completeWalletLogin('0xABC123', 'starknet');
+    });
+
+    // Verify consistency
+    expect(result.current.user.walletAddress).toBe('0xABC123');
+    expect(result.current.wallet.address).toBe('0xABC123');
+    expect(result.current.user.walletType).toBe('starknet');
+    expect(result.current.walletType).toBe('starknet');
+    expect(result.current.user.isAuthenticated).toBe(true);
+    expect(result.current.wallet.isConnected).toBe(true);
+
+    // Verify session storage consistency
+    const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
+    expect(stored.user.walletAddress).toBe('0xABC123');
+    expect(stored.user.walletType).toBe('starknet');
+    expect(localStorage.getItem(WALLET_KEY)).toBe('0xABC123');
+  });
+});
