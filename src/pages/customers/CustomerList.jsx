@@ -20,29 +20,33 @@ function CustomerList() {
   const { customers } = useData();
   const [query, setQuery] = useState("");
 
+  // Fallback to empty array if customers is null/undefined
+  const safeCustomers = customers ?? [];
+
   const filtered = query.trim()
-    ? customers.filter(
+    ? safeCustomers.filter(
         (c) =>
-          c.name.toLowerCase().includes(query.toLowerCase()) ||
-          c.email.toLowerCase().includes(query.toLowerCase()),
+          // Defensive check for name and email properties
+          c?.name?.toLowerCase().includes(query.toLowerCase()) ||
+          c?.email?.toLowerCase().includes(query.toLowerCase()),
       )
-    : customers;
+    : safeCustomers;
 
   const columns = [
     { key: "name", header: "Name" },
     { key: "email", header: "Email" },
     { key: "phone", header: "Phone" },
+    // Added fallbacks for currency and totalSpent
     {
       key: "totalSpent",
       header: "Total Spent",
-      render: (value, row) => `${value} ${row.currency}`,
+      render: (value, row) => `${value ?? "0"} ${row?.currency ?? "STRK"}`,
     },
     { key: "invoiceCount", header: "Invoices" },
-    // Passing true to formatUtcDate ensures the ISO string is localized to the browser timezone
     {
       key: "createdAt",
       header: "Created",
-      render: (value) => formatUtcDate(value, true),
+      render: (value) => formatUtcDate(value),
     },
   ];
 
@@ -61,7 +65,8 @@ function CustomerList() {
         </button>
       </div>
 
-      {customers.length === 0 ? (
+      {/* Use safeCustomers length check */}
+      {safeCustomers.length === 0 ? (
         <EmptyState
           icon={Users}
           title="No customers yet"
@@ -84,7 +89,9 @@ function CustomerList() {
           <DataTable
             columns={columns}
             data={filtered}
-            onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
+            onRowClick={(customer) =>
+              customer?.id && navigate(`/customers/${customer.id}`)
+            }
             emptyMessage="No customers found"
           />
         </>
