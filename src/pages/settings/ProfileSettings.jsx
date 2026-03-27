@@ -2,33 +2,38 @@ import { useEffect, useState } from 'react';
 import { User } from 'lucide-react';
 import Input from '../../components/forms/Input';
 import Button from '../../components/forms/Button';
-import EmptyState from '../../components/ui/EmptyState';
-import { useAuthUser } from '../../context/AuthContext';
+import RichTextEditor from '../../components/forms/RichTextEditor';
+import { useAuthActions, useAuthUser } from '../../context/AuthContext';
+import StagingBanner from '../../components/ui/StagingBanner';
 
 // BUG FIX: Form submission succeeded without validating required fields (name, email).
 // Added a `errors` state and a validate() guard in handleSubmit so the form
 // cannot be submitted with blank required fields.
+
+function getFormDataFromUser(user) {
+    return {
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        company: user.company || '',
+        address: user.address || '',
+        profileDescription: user.profileDescription || '',
+    };
+}
+
 function ProfileSettings() {
     // ISSUE #76: this page only needs the persisted user profile fields.
     // Subscribing to the entire auth context caused unrelated wallet/runtime
     // updates to redraw the whole settings form while the user was editing it.
     const user = useAuthUser();
-    
-    // #34: wallet-auth users always have a generated name but never an email;
-    // email is the only field that signals a real profile has been set up.
-    const hasProfile = !!(user.email);
-    const [formData, setFormData] = useState({
-        name: user.name || '', email: user.email || '', phone: '', company: '', address: ''
-    });
+    const { updateProfile } = useAuthActions();
+    const [formData, setFormData] = useState(() => getFormDataFromUser(user));
     const [errors, setErrors] = useState({});
+    const [saveMessage, setSaveMessage] = useState('');
 
     useEffect(() => {
-        setFormData((current) => ({
-            ...current,
-            name: user.name || '',
-            email: user.email || '',
-        }));
-    }, [user.email, user.name]);
+        setFormData(getFormDataFromUser(user));
+    }, [user]);
 
     const validate = () => {
         const next = {};
@@ -40,13 +45,26 @@ function ProfileSettings() {
     const handleChange = (field) => (e) => {
         setFormData({ ...formData, [field]: e.target.value });
         if (errors[field]) setErrors({ ...errors, [field]: undefined });
+        if (saveMessage) setSaveMessage('');
+    };
+
+    const handleDescriptionChange = (value) => {
+        setFormData((current) => ({ ...current, profileDescription: value }));
+        if (saveMessage) setSaveMessage('');
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         const next = validate();
         if (Object.keys(next).length) { setErrors(next); return; }
-        // API submit logic would go here
+        updateProfile(formData);
+        setSaveMessage('Profile saved for this session.');
+    };
+
+    const handleReset = () => {
+        setFormData(getFormDataFromUser(user));
+        setErrors({});
+        setSaveMessage('');
     };
 
     return (
@@ -69,8 +87,21 @@ function ProfileSettings() {
                     <Input label="Company Name" placeholder="Enter company name" value={formData.company} onChange={handleChange('company')} />
                 </div>
                 <Input label="Business Address" placeholder="Enter your business address" value={formData.address} onChange={handleChange('address')} />
+                <RichTextEditor
+                    id="business-description"
+                    label="Business Description"
+                    placeholder="Describe your business, products, or services"
+                    value={formData.profileDescription}
+                    onChange={handleDescriptionChange}
+                    hint="Supports bold, italic, and bullet lists. Saved through AuthContext as sanitized rich text."
+                />
+                {saveMessage && (
+                    <p role="status" className="text-sm text-green-600">
+                        {saveMessage}
+                    </p>
+                )}
                 <div className="flex justify-end gap-3 pt-4 border-t border-border">
-                    <Button variant="secondary">Cancel</Button>
+                    <Button type="button" variant="secondary" onClick={handleReset}>Cancel</Button>
                     <Button type="submit" variant="primary">Save Changes</Button>
                 </div>
             </form>

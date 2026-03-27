@@ -2,6 +2,17 @@
  * @fileoverview AuthContext — application-wide authentication and wallet state.
  * eslint-disable react-refresh/only-export-components
  *
+ * ISSUE: #115 (Rich text descriptions in the auth/profile flow)
+ * Category: Feature Enhancement
+ * Priority: High
+ * Affected Area: AuthContext
+ * Description: The authenticated user model did not persist any description
+ * field, and Profile Settings had no way to save a rich text business
+ * description through the auth session. The fix keeps the editor UI out of
+ * AuthContext to protect the context bundle budget, while persisting a
+ * sanitized `profileDescription` string and exposing `updateProfile()` for
+ * profile forms that depend on auth state.
+ *
  * ISSUE: #171 (Build size limits for AuthContext)
  * Category: DevOps & Infrastructure
  * Affected Area: AuthContext
@@ -97,6 +108,7 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { STORAGE_PREFIX, SESSION_TTL_MS, ALLOW_MOCK_WALLET } from '../config/env';
 import { useDiscoveredProviders } from '../utils/wallet-discovery';
+import { normalizeRichTextHtml } from '../utils/richText';
 
 const AuthContext = createContext(null);
 const AuthUserContext = createContext(null);
@@ -125,12 +137,16 @@ const WALLET_KEY  = `${STORAGE_PREFIX}_last_wallet`;
  * Shape of the authenticated user record stored in state and localStorage.
  *
  * @property {string | null} id              - Wallet address used as the user ID.
- * @property {string}        name            - Abbreviated wallet address, e.g. `"GABC12...XY56"`.
- * @property {string}        email           - Always `""` for wallet-auth users.
+ * @property {string}        name            - Merchant display name or abbreviated wallet address.
+ * @property {string}        email           - Contact email persisted in the session.
  * @property {string | null} avatar          - Profile image URL or `null`.
  * @property {boolean}       isAuthenticated - `true` once a wallet is connected.
  * @property {string | null} walletAddress   - Full connected wallet address.
  * @property {WalletType | null} walletType  - Which network the wallet is on.
+ * @property {string}        phone           - Business phone number.
+ * @property {string}        company         - Merchant or company name.
+ * @property {string}        address         - Business address.
+ * @property {string}        profileDescription - Sanitized rich text business description.
  */
 
 /**
@@ -192,6 +208,10 @@ const WALLET_KEY  = `${STORAGE_PREFIX}_last_wallet`;
  *   Authenticates a user from non-wallet credentials (email/password, OAuth).
  *   Persists a session to localStorage.
  *
+ * @property {(updates: Partial<UserData>) => void} updateProfile
+ *   Persists profile fields, including the rich text business description,
+ *   without mutating wallet connection state.
+ *
  * @property {() => void} logout
  *   Clears session, resets user and wallet state to defaults.
  *
@@ -246,7 +266,7 @@ export function loadSession() {
             localStorage.removeItem(SESSION_KEY);
             return null;
         }
-        return parsed.user;
+        return normalizeUserData(parsed.user);
     } catch {
         return null;
     }
@@ -259,8 +279,9 @@ export function loadSession() {
  * @returns {void}
  */
 function saveSession(userData) {
+    const normalizedUserData = normalizeUserData(userData);
     localStorage.setItem(SESSION_KEY, JSON.stringify({
-        user: userData,
+        user: normalizedUserData,
         expiresAt: Date.now() + SESSION_TTL_MS,
     }));
 }
@@ -289,7 +310,24 @@ const EMPTY_USER = {
     isAuthenticated: false,
     walletAddress: null,
     walletType: null,
+    phone: "",
+    company: "",
+    address: "",
+    profileDescription: "",
 };
+
+function normalizeUserData(userData = {}) {
+    return {
+        ...EMPTY_USER,
+        ...userData,
+        name: userData.name || "",
+        email: userData.email || "",
+        phone: userData.phone || "",
+        company: userData.company || "",
+        address: userData.address || "",
+        profileDescription: normalizeRichTextHtml(userData.profileDescription || ""),
+    };
+}
 
 const EMPTY_WALLET = {
     address: "",
@@ -458,15 +496,16 @@ export function AuthProvider({ children }) {
             const walletState = { address, isConnected: true, chainId, balance: "0", currency };
             
             /** @type {UserData} */
-            const userData = {
+            const userData = normalizeUserData({
+                ...currentUser,
                 id: address,
-                name: `${address.slice(0, 6)}...${address.slice(-4)}`,
-                email: "",
-                avatar: null,
+                name: currentUser.name || `${address.slice(0, 6)}...${address.slice(-4)}`,
+                email: currentUser.email || "",
+                avatar: currentUser.avatar || null,
                 isAuthenticated: true,
                 walletAddress: address,
                 walletType: type,
-            };
+            });
 
             // ISSUE #71 FIX: Batch all state updates together using React 18's automatic batching
             // This ensures only one render cycle instead of three separate ones
@@ -491,9 +530,32 @@ export function AuthProvider({ children }) {
      * @returns {void}
      */
     const login = useCallback((userData) => {
-        const authed = { ...userData, isAuthenticated: true };
+        const authed = normalizeUserData({ ...userData, isAuthenticated: true });
         setUser(authed);
         saveSession(authed);
+    }, []);
+
+    /**
+     * ISSUE #115: Profile settings need a persistent, sanitized rich text
+     * description without moving editor implementation into AuthContext.
+     *
+     * @param {Partial<UserData>} updates - User profile updates to merge.
+     * @returns {void}
+     */
+    const updateProfile = useCallback((updates) => {
+        setUser((currentUser) => {
+            const nextUser = normalizeUserData({
+                ...currentUser,
+                ...updates,
+                isAuthenticated: currentUser.isAuthenticated,
+            });
+
+            if (nextUser.isAuthenticated) {
+                saveSession(nextUser);
+            }
+
+            return nextUser;
+        });
     }, []);
 
     /**
@@ -921,6 +983,7 @@ export function AuthProvider({ children }) {
         setUser,
         setWallet,
         login,
+        updateProfile,
         logout,
         connectWallet,
         disconnectWallet,
@@ -928,6 +991,7 @@ export function AuthProvider({ children }) {
         completeWalletLogin,
     }), [
         login,
+        updateProfile,
         logout,
         connectWallet,
         disconnectWallet,
@@ -1034,7 +1098,7 @@ export function useAuthUser() {
  * route tree and modal. This selector-style hook isolates command-only
  * consumers from that churn.
  *
- * @returns {Pick<AuthContextValue, 'setUser' | 'setWallet' | 'login' | 'logout' | 'connectWallet' | 'disconnectWallet' | 'disconnectAll' | 'completeWalletLogin'>}
+ * @returns {Pick<AuthContextValue, 'setUser' | 'setWallet' | 'login' | 'updateProfile' | 'logout' | 'connectWallet' | 'disconnectWallet' | 'disconnectAll' | 'completeWalletLogin'>}
  * @throws {Error} If called outside an AuthProvider.
  */
 export function useAuthActions() {

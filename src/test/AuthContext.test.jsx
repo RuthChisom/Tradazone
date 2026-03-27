@@ -66,6 +66,32 @@ describe('login', () => {
   });
 });
 
+describe('updateProfile', () => {
+  it('persists sanitized rich text descriptions in the auth session', () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    act(() => {
+      result.current.completeWalletLogin('GADDR1234', 'stellar');
+    });
+
+    act(() => {
+      result.current.updateProfile({
+        name: 'Merchant Alice',
+        email: 'merchant@example.com',
+        company: 'Alice Co',
+        profileDescription: '<p>Trusted <strong>merchant</strong><script>alert(1)</script></p>',
+      });
+    });
+
+    expect(result.current.user.name).toBe('Merchant Alice');
+    expect(result.current.user.company).toBe('Alice Co');
+    expect(result.current.user.profileDescription).toBe('<p>Trusted <strong>merchant</strong></p>');
+
+    const stored = JSON.parse(localStorage.getItem(SESSION_KEY));
+    expect(stored.user.profileDescription).toBe('<p>Trusted <strong>merchant</strong></p>');
+  });
+});
+
 describe('logout', () => {
   it('clears user state and removes session from localStorage', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
