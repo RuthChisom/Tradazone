@@ -12,7 +12,6 @@
     - [Deploying](#deploying)
     - [Modifying the README](#modifying-the-readme)
   - [🛠️ Developer Guide: Auth & SignUp](#-developer-guide-auth--signup)
-  - [🛠️ Developer Guide: Auth & SignUp](#-developer-guide-auth--signup-1)
     - [Authentication Flow Overview](#authentication-flow-overview)
     - [Modifying the SignUp Page](#modifying-the-signup-page)
     - [Adding New Wallet Providers](#adding-new-wallet-providers)
@@ -130,8 +129,6 @@ This project uses [doctoc](https://github.com/thlorenz/doctoc) to generate a tab
    ```
 
 ---
-
-## 🛠️ Developer Guide: Auth & SignUp
 
 ## 🛠️ Developer Guide: Auth & SignUp
 
