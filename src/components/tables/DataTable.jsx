@@ -6,35 +6,112 @@
  * Virtualization is enforced for datasets exceeding VIRTUALIZATION_THRESHOLD.
  */
 
-import { useVirtualList } from '../../hooks/useVirtualList';
+import { useState, useCallback } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Filter,
+  Calendar,
+  DollarSign,
+  X,
+} from "lucide-react";
+import { useDataFilters, FILTER_CONFIGS } from "../../context/DataContext";
+import { useVirtualList } from "../../hooks/useVirtualList";
+
+const FILTER_ROW_HEIGHT = 60;
 
 const VIRTUALIZATION_THRESHOLD = 50;
 const ROW_HEIGHT = 52;
 
 function DataTable({
-    columns,
-    data,
-    onRowClick,
-    emptyMessage = 'No data available',
-    className = '',
-    selectable = false,
-    selectedItems = [],
-    onSelectionChange = () => {}
+  columns,
+  data: rawData,
+  onRowClick,
+  emptyMessage = "No data available",
+  className = "",
+  selectable = false,
+  selectedItems = [],
+  onSelectionChange = () => {},
+  enableFilters = true,
+  dataType = "generic",
 }) {
-    const handleSelectAll = (e) => {
-        if (e.target.checked) {
-            onSelectionChange(data.map(item => item.id));
-        } else {
-            onSelectionChange([]);
-        }
-    };
+  const { filters, setFilters, resetFilters } = enableFilters
+    ? useDataFilters(dataType)
+    : { filters: {}, setFilters: () => {}, resetFilters: () => {} };
+  const config = enableFilters ? FILTER_CONFIGS[dataType] || {} : {};
+  const filteredData = enableFilters
+    ? useFilteredData({ data: rawData, filters, config })
+    : rawData;
 
-    const handleSelectItem = (e, id) => {
-        e.stopPropagation();
-        if (e.target.checked) {
-            onSelectionChange([...selectedItems, id]);
-        } else {
-            onSelectionChange(selectedItems.filter(itemId => itemId !== id));
+  const toggleSort = useCallback(
+    (field) => {
+      setFilters({
+        ...filters,
+        sort: {
+          field,
+          dir:
+            filters.sort.field === field && filters.sort.dir === "asc"
+              ? "desc"
+              : "asc",
+        },
+      });
+    },
+    [filters, setFilters],
+  );
+
+  const clearSearch = useCallback(() => {
+    setFilters({ ...filters, search: "" });
+  }, [filters, setFilters]);
+
+  const isSorted = (field) => filters.sort.field === field;
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      onSelectionChange(data.map((item) => item.id));
+    } else {
+      onSelectionChange([]);
+    }
+  };
+
+  const handleSelectItem = (e, id) => {
+    e.stopPropagation();
+    if (e.target.checked) {
+      onSelectionChange([...selectedItems, id]);
+    } else {
+      onSelectionChange(selectedItems.filter((itemId) => itemId !== id));
+    }
+  };
+
+  const isAllSelected = data.length > 0 && selectedItems.length === data.length;
+
+  // ISSUE #75 FIX: Enable virtualization for large datasets
+  const shouldVirtualize = filteredData.length > VIRTUALIZATION_THRESHOLD;
+
+  // Always call the hook (React rules prohibit conditional hook calls)
+  const { scrollRef, virtualItems, topPadding, bottomPadding } = useVirtualList(
+    {
+      items: data,
+      itemHeight: ROW_HEIGHT,
+    },
+  );
+
+  // Use virtualized items if enabled, otherwise use full dataset
+  const rowsToRender = shouldVirtualize
+    ? virtualItems.map((v) => ({ ...v.item, _virtualIndex: v.index }))
+    : filteredData.map((item, index) => ({ ...item, _virtualIndex: index }));
+
+  return (
+    <div
+      className={`bg-white border border-border rounded-card overflow-hidden ${className}`}
+    >
+      {/* Horizontal scroll wrapper for mobile */}
+      <div
+        ref={shouldVirtualize ? scrollRef : undefined}
+        className="overflow-x-auto -webkit-overflow-scrolling-touch"
+        style={
+          shouldVirtualize
+            ? { maxHeight: "600px", overflowY: "auto" }
+            : undefined
         }
     };
 

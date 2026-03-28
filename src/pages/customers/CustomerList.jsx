@@ -90,8 +90,10 @@ function CustomerList() {
           </div>
           
           <DataTable
+            dataType="customers"
+            data={customers}
             columns={columns}
-            data={filtered}
+            enableFilters={true}
             onRowClick={(customer) =>
               customer?.id && navigate(`/customers/${customer.id}`)
             }
