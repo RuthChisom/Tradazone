@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { apiFetch, setUnauthorizedHandler, paginate } from '../services/api';
+import api, { apiFetch, setUnauthorizedHandler, paginate } from '../services/api';
 
 // ─── apiFetch ────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,21 @@ describe("apiFetch", () => {
     const data = await apiFetch("/api/customers");
     expect(data).toEqual({ id: 1, name: "Alice" });
   });
+
+  it("includes secure headers (X-Content-Type-Options: nosniff)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/api/any");
+    
+    const options = fetchMock.mock.calls[0][1];
+    expect(options.headers["X-Content-Type-Options"]).toBe("nosniff");
+  });
+
 
   it("throws an enriched error on non-401 failure", async () => {
     vi.stubGlobal(
@@ -140,6 +155,16 @@ describe("paginate", () => {
     expect(result.data[0].id).toBe(1);
   });
 
+  it("handles transition from page 1 to page 0 without underflow", () => {
+    const pageOne = paginate(items, 1, 10);
+    expect(pageOne.page).toBe(1);
+    expect(pageOne.data[0].id).toBe(1);
+
+    const nextState = paginate(items, pageOne.page - 1, 10);
+    expect(nextState.page).toBe(1);
+    expect(nextState.data[0].id).toBe(1);
+  });
+
   it("clamps negative page numbers to page 1", () => {
     const result = paginate(items, -5, 10);
     expect(result.page).toBe(1);
@@ -169,5 +194,35 @@ describe("paginate", () => {
     const result = paginate(items);
     expect(result.page).toBe(1);
     expect(result.limit).toBe(10);
+  });
+});
+
+describe("api object - List methods with pagination", () => {
+  it("customers.list returns paginated results", async () => {
+    const result = await api.customers.list(1, 2);
+    expect(result.data).toHaveLength(2);
+    expect(result.page).toBe(1);
+    expect(result.total).toBeGreaterThan(2);
+  });
+
+  it("invoices.list returns paginated results", async () => {
+    const result = await api.invoices.list(1, 1);
+    expect(result.data).toHaveLength(1);
+    expect(result.page).toBe(1);
+    expect(result.total).toBeGreaterThan(1);
+  });
+
+  it("checkouts.list returns paginated results", async () => {
+    const result = await api.checkouts.list(2, 1);
+    expect(result.data).toHaveLength(1);
+    expect(result.page).toBe(2);
+    expect(result.total).toBeGreaterThan(1);
+  });
+
+  it("items.list returns paginated results", async () => {
+    const result = await api.items.list(1, 3);
+    expect(result.data).toHaveLength(3);
+    expect(result.page).toBe(1);
+    expect(result.total).toBeGreaterThan(3);
   });
 });

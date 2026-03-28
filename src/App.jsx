@@ -3,39 +3,46 @@
  *
  * ADR-002: docs/adr/002-app-routing-stack.md (Issue #202)
  * - BrowserRouter + nested Routes; protected shell via PrivateRoute + Layout.
+ *
+ * PERFORMANCE: Route components are loaded via React.lazy() so the JS for 
+ * each feature is fetched on-demand. Chart.js (used within the checkout flow) 
+ * is further isolated in its own `charts` Rollup chunk.
+ * See: src/components/ui/LazyChart.jsx and vite.config.js for details.
  */
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import PrivateRoute from './components/routing/PrivateRoute';
-import SignIn from './pages/auth/SignIn';
-import SignUp from './pages/auth/SignUp';
-import Home from './pages/dashboard/Home';
-import CustomerList from './pages/customers/CustomerList';
-import AddCustomer from './pages/customers/AddCustomer';
-import CustomerDetail from './pages/customers/CustomerDetail';
-import CheckoutList from './pages/checkouts/CheckoutList';
-import CreateCheckout from './pages/checkouts/CreateCheckout';
-import CheckoutDetail from './pages/checkouts/CheckoutDetail';
-import MailCheckout from './pages/checkouts/MailCheckout';
-import InvoiceList from './pages/invoices/InvoiceList';
-import CreateInvoice from './pages/invoices/CreateInvoice';
-import InvoiceDetail from './pages/invoices/InvoiceDetail';
-import InvoicePreview from './pages/invoices/InvoicePreview';
-import ItemsList from './pages/items/ItemsList';
-import AddItem from './pages/items/AddItem';
-import ItemDetail from './pages/items/ItemDetail';
-import Settings from './pages/settings/Settings';
-import ProfileSettings from './pages/settings/ProfileSettings';
-import PaymentSettings from './pages/settings/PaymentSettings';
-import NotificationSettings from './pages/settings/NotificationSettings';
-import PasswordSettings from './pages/settings/PasswordSettings';
+import LoadingSpinner from './components/ui/LoadingSpinner';
+
+const SignIn = lazy(() => import('./pages/auth/SignIn'));
+const SignUp = lazy(() => import('./pages/auth/SignUp'));
+const Home = lazy(() => import('./pages/dashboard/Home'));
+const CustomerList = lazy(() => import('./pages/customers/CustomerList'));
+const AddCustomer = lazy(() => import('./pages/customers/AddCustomer'));
+const CustomerDetail = lazy(() => import('./pages/customers/CustomerDetail'));
+const CheckoutList = lazy(() => import('./pages/checkouts/CheckoutList'));
+const CreateCheckout = lazy(() => import('./pages/checkouts/CreateCheckout'));
+const CheckoutDetail = lazy(() => import('./pages/checkouts/CheckoutDetail'));
+const MailCheckout = lazy(() => import('./pages/checkouts/MailCheckout'));
+const InvoiceList = lazy(() => import('./pages/invoices/InvoiceList'));
+const CreateInvoice = lazy(() => import('./pages/invoices/CreateInvoice'));
+const InvoiceDetail = lazy(() => import('./pages/invoices/InvoiceDetail'));
+const InvoicePreview = lazy(() => import('./pages/invoices/InvoicePreview'));
+const ItemsList = lazy(() => import('./pages/items/ItemsList'));
+const AddItem = lazy(() => import('./pages/items/AddItem'));
+const ItemDetail = lazy(() => import('./pages/items/ItemDetail'));
+const Settings = lazy(() => import('./pages/settings/Settings'));
+const ProfileSettings = lazy(() => import('./pages/settings/ProfileSettings'));
+const PaymentSettings = lazy(() => import('./pages/settings/PaymentSettings'));
+const NotificationSettings = lazy(() => import('./pages/settings/NotificationSettings'));
+const PasswordSettings = lazy(() => import('./pages/settings/PasswordSettings'));
+
 import { AuthProvider } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-/**
- * Webhook integration — checkout events
- *
+ /** 
  * The following checkout lifecycle events are dispatched via
  * `src/services/webhook.js` (dispatchWebhook) at the route level:
  *
@@ -56,11 +63,19 @@ function App() {
     <AuthProvider>
       <DataProvider>
         <BrowserRouter basename="/Tradazone">
+          <Suspense fallback={<LoadingSpinner />}>
           <Routes>
-            {/* Public routes */}
+            {/* Public routes — checkout payment page is lazy-loaded */}
+            <Route
+              path="/pay/:checkoutId"
+              element={
+                <Suspense fallback={<div className="min-h-screen bg-brand" aria-busy="true" aria-label="Loading…" />}>
+                  <MailCheckout />
+                </Suspense>
+              }
+            />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
-            <Route path="/pay/:checkoutId" element={<MailCheckout />} />
             <Route path="/invoice/:id" element={<InvoicePreview />} />
 
             {/* Protected routes — require authentication */}
@@ -76,9 +91,13 @@ function App() {
               <Route path="customers" element={<CustomerList />} />
               <Route path="customers/add" element={<AddCustomer />} />
               <Route path="customers/:id" element={<CustomerDetail />} />
-              <Route path="checkout" element={<CheckoutList />} />
-              <Route path="checkout/create" element={<CreateCheckout />} />
-              <Route path="checkout/:id" element={<CheckoutDetail />} />
+              {/* Checkout routes — wrapped in Suspense so the lazy chunks
+                  resolve gracefully while the user navigates */}
+              <Suspense fallback={<div className="p-8 text-center text-sm text-gray-400" aria-busy="true">Loading…</div>}>
+                <Route path="checkout" element={<CheckoutList />} />
+                <Route path="checkout/create" element={<CreateCheckout />} />
+                <Route path="checkout/:id" element={<CheckoutDetail />} />
+              </Suspense>
               <Route path="invoices" element={<InvoiceList />} />
               <Route path="invoices/create" element={<CreateInvoice />} />
               <Route path="invoices/:id" element={<InvoiceDetail />} />
@@ -96,6 +115,7 @@ function App() {
             {/* Catch-all — redirect to signin */}
             <Route path="*" element={<Navigate to="/signin" replace />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </DataProvider>
     </AuthProvider>

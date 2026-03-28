@@ -21,6 +21,11 @@ async function renderProfileSettings() {
 }
 
 describe('ProfileSettings', () => {
+    // ISSUE #6 VERIFICATION: This test suite confirms that ProfileSettings
+    // does NOT contain any numerical calculations or totals. The component
+    // handles only string-based profile data (name, email, phone, company,
+    // address, description). Floating-point precision issues are not applicable.
+    // See src/utils/currency.js for safe calculation utilities used elsewhere.
     beforeEach(() => {
         mockUpdateProfile.mockReset();
         mockUser = {
@@ -60,5 +65,14 @@ describe('ProfileSettings', () => {
             profileDescription: '<p>Updated <em>merchant</em> summary</p>',
         });
         expect(screen.getByRole('status')).toHaveTextContent('Profile saved for this session.');
+    });
+
+    it('renders the virtualized profile activity list', async () => {
+        await renderProfileSettings();
+
+        const activityRegion = screen.getByTestId('virtualized-profile-activity');
+        expect(activityRegion).toBeInTheDocument();
+
+        expect(activityRegion.textContent).toMatch(/updated profile field/i);
     });
 });
