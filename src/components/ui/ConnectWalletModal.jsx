@@ -23,7 +23,7 @@
  * @module ConnectWalletModal
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { X, ExternalLink, AlertCircle, ChevronLeft } from 'lucide-react';
 import { useDebounce } from '../../hooks/useDebounce';
 import Logo from './Logo';
@@ -36,7 +36,7 @@ import {
 import { useVirtualList } from '../../hooks/useVirtualList';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import StagingBanner from './StagingBanner';
-import RichTextEditor from '../forms/RichTextEditor';
+const RichTextEditor = lazy(() => import('../forms/RichTextEditor'));
 import { STORAGE_PREFIX } from '../../config/env';
 import { normalizeRichTextHtml } from '../../utils/richText';
 
@@ -286,15 +286,22 @@ function ConnectWalletModal({ isOpen, onClose, onConnect, connectWalletFn }) {
                         </div>
 
                         {view === 'primary' && !debouncedSearchQuery && (
-                            <div className="mb-6 animate-fade-in">
-                                <RichTextEditor
-                                    id="modal-business-description"
-                                    label="Business description draft"
-                                    value={descriptionDraft}
-                                    onChange={handleDescriptionChange}
-                                    placeholder="Describe your business context before connecting..."
-                                    hint="This description will be synced to your profile after connection."
-                                />
+                            <div className="mb-6 animate-fade-in min-h-[200px]">
+                                <Suspense fallback={
+                                    <div className="flex flex-col gap-1.5 animate-pulse">
+                                        <div className="h-4 w-32 bg-gray-200 rounded" />
+                                        <div className="h-36 w-full bg-gray-100 rounded-lg border border-border" />
+                                    </div>
+                                }>
+                                    <RichTextEditor
+                                        id="modal-business-description"
+                                        label="Business description draft"
+                                        value={descriptionDraft}
+                                        onChange={handleDescriptionChange}
+                                        placeholder="Describe your business context before connecting..."
+                                        hint="This description will be synced to your profile after connection."
+                                    />
+                                </Suspense>
                             </div>
                         )}
 
